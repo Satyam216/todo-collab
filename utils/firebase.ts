@@ -5,13 +5,12 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB7ZkJOYHV8iRdcbeBuqw4iIMYFYM0AtLc",
-  authDomain: "todo-collab-5cce7.firebaseapp.com",
-  projectId: "todo-collab-5cce7",
-  storageBucket: "todo-collab-5cce7.firebasestorage.app",
-  messagingSenderId: "214084995190",
-  appId: "1:214084995190:web:c754347bfa9ee5053c7757",
-  measurementId: "G-87S8N7G9N6"
+  apiKey: process.env.API_KEY,
+  authDomain: process.env.AUTH_DOMAIN,
+  projectId: process.env.PROJECT_ID,
+  storageBucket: process.env.STORAGE_BUCKET,
+  messagingSenderId: process.env.MESSAGING_SENDER_ID,
+  appId: process.env.APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
