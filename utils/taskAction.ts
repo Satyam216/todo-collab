@@ -9,6 +9,13 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
+type Task = {
+  id: string;
+  task: string;
+  completed: boolean;
+  createdAt?: any; // Firestore timestamp ko handle karne ke liye
+};
+
 // Add a new task
 export const addTask = async (roomId: string, task: string) => {
   if (!roomId || !task.trim()) {
@@ -30,7 +37,7 @@ export const addTask = async (roomId: string, task: string) => {
 };
 
 // Get all tasks for a room
-export const getTasks = async (roomId: string) => {
+export const getTasks = async (roomId: string): Promise<Task[] | null> => {
   if (!roomId) {
     throw new Error('Room ID is required');
   }
@@ -38,10 +45,17 @@ export const getTasks = async (roomId: string) => {
   try {
     const tasksRef = collection(doc(db, 'rooms', roomId), 'tasks');
     const snapshot = await getDocs(tasksRef);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => { 
+      const data = doc.data();
+      return {
+      id: doc.id,
+      task: data.task || '', // Default empty string
+      completed: data.completed ?? false, // Default false
+      createdAt: data.createdAt || null,
+    }; });
   } catch (error) {
     console.error('Error fetching tasks:', error);
-    throw error;
+    return null ;
   }
 };
 

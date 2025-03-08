@@ -12,11 +12,18 @@ import {
   editTask,
 } from "@/utils/taskAction";
 
+// Define Task type
+interface Task {
+  id: string;
+  task: string;
+  completed: boolean;
+}
+
 export default function RoomPage() {
-  const { roomId } = useParams();
+  const { roomId } = useParams<{ roomId: string }>();;
   const router = useRouter();
   const [clientRoomId, setClientRoomId] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [task, setTask] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -36,8 +43,8 @@ export default function RoomPage() {
     const fetchTasks = async () => {
       try {
         setLoading(true);
-        const data = await getTasks(clientRoomId);
-        setTasks(data || []);
+        const data: Task[] | null = await getTasks(clientRoomId);
+        setTasks(data ?? []);
       } catch (err) {
         console.error("Error fetching tasks:", err);
       } finally {
@@ -102,7 +109,7 @@ export default function RoomPage() {
     }
   };
 
-  const handleEditTask = (task: any) => {
+  const handleEditTask = (task: Task) => {
     setEditingTask(task.id);
     setEditText(task.task);
   };
