@@ -1,17 +1,27 @@
-import { db } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from './firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-export const createRoom = async (roomId: any, roomName: any) => {
-  try {
-    const roomRef = doc(db, 'rooms', roomId); // custom room ID
-    await setDoc(roomRef, {
-      roomName,
-      createdAt: serverTimestamp(),
-    });
-    console.log('Room created with custom ID:', roomId);
-    return roomId;
-  } catch (error) {
-    console.error('Error creating room:', error);
-    throw error;
+// CREATE ROOM
+export const createRoom = async (roomId: string, roomName: string) => {
+  const roomRef = doc(db, 'rooms', roomId);
+
+  const roomSnap = await getDoc(roomRef);
+
+  if (roomSnap.exists()) {
+    throw new Error('Room already exists');
   }
+
+  await setDoc(roomRef, {
+    name: roomName,
+    createdAt: new Date(),
+  });
+
+  return roomId;
+};
+
+// CHECK ROOM EXISTS
+export const checkRoomExists = async (roomId: string) => {
+  const roomRef = doc(db, 'rooms', roomId);
+  const roomSnap = await getDoc(roomRef);
+  return roomSnap.exists();
 };

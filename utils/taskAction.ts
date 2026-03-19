@@ -6,7 +6,6 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
-  serverTimestamp,
 } from 'firebase/firestore';
 
 type Task = {
@@ -27,7 +26,7 @@ export const addTask = async (roomId: string, task: string) => {
     const newTask = await addDoc(tasksRef, {
       task,
       completed: false,
-      createdAt: serverTimestamp(),
+      createdAt: new Date(),
     });
     return { id: newTask.id, task, completed: false };
   } catch (error) {
