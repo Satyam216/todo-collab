@@ -1,7 +1,6 @@
 import { db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-// CREATE ROOM
 export const createRoom = async (roomId: string, roomName: string) => {
   const roomRef = doc(db, 'rooms', roomId);
 
@@ -19,7 +18,6 @@ export const createRoom = async (roomId: string, roomName: string) => {
   return roomId;
 };
 
-// CHECK ROOM EXISTS
 export const checkRoomExists = async (roomId: string) => {
   const roomRef = doc(db, 'rooms', roomId);
   const roomSnap = await getDoc(roomRef);

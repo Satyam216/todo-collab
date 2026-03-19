@@ -71,7 +71,7 @@ export default function Home() {
           style={styles.eyebrow}
         >
           <div style={styles.eyebrowLine} />
-          <span style={styles.eyebrowText}>// REAL-TIME TASK COLLABORATION</span>
+          <span style={styles.eyebrowText}>REAL-TIME TASK COLLABORATION</span>
           <div style={styles.eyebrowLine} />
         </motion.div>
 
@@ -404,8 +404,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   bottomBarText: { fontSize: 9, letterSpacing: 3, color: C.borderBright, fontFamily: C.font },
 };
-
-/* ─── GLOBAL CSS ──────────────────────────────────────── */
 
 const globalStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Share+Tech+Mono&display=swap');

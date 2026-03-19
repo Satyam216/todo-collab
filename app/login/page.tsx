@@ -73,7 +73,7 @@ export default function Login() {
 
         {/* TITLE */}
         <div style={styles.titleBlock}>
-          <p style={styles.titleSub}>// INITIALIZING</p>
+          <p style={styles.titleSub}>INITIALIZING</p>
           <h1 style={styles.title}>TODO COLLAB</h1>
           <div style={styles.titleUnderline} />
           <p style={styles.titleDesc}>COLLABORATE · MANAGE · ACHIEVE</p>
@@ -507,8 +507,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: C.font,
   },
 };
-
-/* ─── GLOBAL CSS ──────────────────────────────────────── */
 
 const globalStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Share+Tech+Mono&display=swap');

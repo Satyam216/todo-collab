@@ -18,6 +18,7 @@ interface Task {
   id: string;
   task: string;
   completed: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdAt?: any;
 }
 
@@ -51,7 +52,7 @@ export default function RoomPage() {
       }
     };
     verifyRoom();
-  }, [clientRoomId]);
+  }, [clientRoomId, router]);
 
   useEffect(() => {
     if (!clientRoomId || !roomValid) return;
@@ -75,11 +76,16 @@ export default function RoomPage() {
       </div>
     );
   }
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formatDate = (date: any) => {
     if (!date) return "";
-    const d = date.toDate ? date.toDate() : new Date(date);
-    return d.toLocaleString();
+    const d =
+    typeof date === "object" && date !== null && "toDate" in date
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? (date as any).toDate()
+      : new Date(date as string);
+
+  return d.toLocaleString();
   };
 
   const handleCopy = (text: string, id: string) => {
@@ -381,7 +387,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   loadingText: { color: C.cyan, fontSize: 13, letterSpacing: 4, opacity: 0.8 },
 
-  // TOP BAR
   topBar: {
     position: "relative",
     zIndex: 10,
@@ -486,7 +491,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   logoutText: { fontSize: 11, letterSpacing: 2 },
 
-  // MAIN PANEL
   panel: {
     position: "relative",
     zIndex: 5,
@@ -507,7 +511,6 @@ const styles: Record<string, React.CSSProperties> = {
   cornerBL: { bottom: -1, left: -1, borderBottom: `2px solid ${C.cyan}`, borderLeft: `2px solid ${C.cyan}` },
   cornerBR: { bottom: -1, right: -1, borderBottom: `2px solid ${C.cyan}`, borderRight: `2px solid ${C.cyan}` },
 
-  // STATS
   statsRow: {
     display: "flex",
     alignItems: "center",
@@ -523,7 +526,6 @@ const styles: Record<string, React.CSSProperties> = {
   statLabel: { fontSize: 10, letterSpacing: 3, color: C.textDim },
   statDivider: { width: 1, height: 40, background: C.borderBright },
 
-  // INPUT
   inputRow: {
     display: "flex",
     gap: 10,
@@ -581,7 +583,6 @@ const styles: Record<string, React.CSSProperties> = {
     paddingLeft: 4,
   },
 
-  // TASKS
   taskList: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column" as const, gap: 10 },
   emptyState: {
     display: "flex",

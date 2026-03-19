@@ -42,6 +42,7 @@ export default function Dashboard() {
       }, 1000);
     } catch (err) {
       setError('Room ID already exists. Please choose another.');
+      console.error(err);
     }
   };
 
@@ -89,7 +90,7 @@ export default function Dashboard() {
           <div style={styles.welcomeInner}>
             <div style={styles.welcomeAccentLine} />
             <div>
-              <p style={styles.welcomeLabel}>// DASHBOARD INTERFACE</p>
+              <p style={styles.welcomeLabel}>DASHBOARD INTERFACE</p>
               <h1 style={styles.welcomeTitle}>WELCOME, OPERATOR</h1>
             </div>
             <div style={styles.welcomeCode}>SYS-v2.4.1</div>
@@ -127,7 +128,7 @@ export default function Dashboard() {
                 <div style={styles.inputAccent} />
                 <input
                   type="text"
-                  placeholder="// ENTER ROOM ID..."
+                  placeholder="ENTER ROOM ID..."
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
@@ -172,7 +173,7 @@ export default function Dashboard() {
                 <div style={{ ...styles.inputAccent, background: `linear-gradient(180deg, ${C.green}, transparent)` }} />
                 <input
                   type="text"
-                  placeholder="// ROOM NAME..."
+                  placeholder="ROOM NAME..."
                   value={newRoomName}
                   onChange={(e) => setNewRoomName(e.target.value)}
                   style={styles.input}
@@ -189,7 +190,7 @@ export default function Dashboard() {
                 <div style={{ ...styles.inputAccent, background: `linear-gradient(180deg, ${C.green}, transparent)` }} />
                 <input
                   type="text"
-                  placeholder="// CUSTOM ROOM ID..."
+                  placeholder="CUSTOM ROOM ID..."
                   value={customRoomId}
                   onChange={(e) => setCustomRoomId(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
@@ -230,8 +231,6 @@ export default function Dashboard() {
   );
 }
 
-/* ─── DESIGN TOKENS ──────────────────────────────────── */
-
 const C = {
   cyan: '#00d4ff',
   cyanDim: '#00d4ff22',
@@ -251,7 +250,6 @@ const C = {
   fontBody: "'Share Tech Mono', 'Courier New', monospace",
 };
 
-/* ─── STYLES ─────────────────────────────────────────── */
 
 const styles: Record<string, React.CSSProperties> = {
   main: {
@@ -306,7 +304,6 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 0,
   },
 
-  /* HEADER */
   header: {
     position: 'relative',
     zIndex: 10,
@@ -366,7 +363,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'all 0.2s',
   },
 
-  /* WELCOME STRIP */
+
   welcomeStrip: {
     position: 'relative',
     zIndex: 5,
@@ -389,7 +386,6 @@ const styles: Record<string, React.CSSProperties> = {
   welcomeTitle: { margin: 0, fontFamily: C.font, fontSize: 22, color: C.cyan, letterSpacing: 4, textShadow: `0 0 14px ${C.cyanGlow}` },
   welcomeCode: { marginLeft: 'auto', fontSize: 10, letterSpacing: 3, color: C.borderBright, fontFamily: C.font },
 
-  /* GRID */
   grid: {
     position: 'relative',
     zIndex: 5,
@@ -401,7 +397,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 24,
   },
 
-  /* PANEL */
   panel: {
     background: `linear-gradient(160deg, ${C.surface}, ${C.surfaceAlt})`,
     border: `1px solid ${C.borderBright}`,
@@ -573,8 +568,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   footerText: { fontSize: 10, letterSpacing: 3, color: C.borderBright },
 };
-
-/* ─── GLOBAL CSS ─────────────────────────────────────── */
 
 const globalStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Share+Tech+Mono&display=swap');

@@ -12,10 +12,9 @@ type Task = {
   id: string;
   task: string;
   completed: boolean;
-  createdAt?: any; // Firestore timestamp ko handle karne ke liye
+  createdAt?: any;
 };
 
-// Add a new task
 export const addTask = async (roomId: string, task: string) => {
   if (!roomId || !task.trim()) {
     throw new Error('Room ID and task are required');
@@ -35,7 +34,6 @@ export const addTask = async (roomId: string, task: string) => {
   }
 };
 
-// Get all tasks for a room
 export const getTasks = async (roomId: string): Promise<Task[] | null> => {
   if (!roomId) {
     throw new Error('Room ID is required');
@@ -48,8 +46,8 @@ export const getTasks = async (roomId: string): Promise<Task[] | null> => {
       const data = doc.data();
       return {
       id: doc.id,
-      task: data.task || '', // Default empty string
-      completed: data.completed ?? false, // Default false
+      task: data.task || '',
+      completed: data.completed ?? false,
       createdAt: data.createdAt || null,
     }; });
   } catch (error) {
@@ -58,7 +56,6 @@ export const getTasks = async (roomId: string): Promise<Task[] | null> => {
   }
 };
 
-// Edit an existing task
 export const editTask = async (roomId: string, taskId: string, updatedTask: string) => {
   if (!roomId || !taskId || !updatedTask.trim()) {
     throw new Error('Room ID, task ID, and updated task are required');
@@ -76,7 +73,6 @@ export const editTask = async (roomId: string, taskId: string, updatedTask: stri
   }
 };
 
-// Mark task as complete/incomplete
 export const toggleTaskCompletion = async (roomId: string, taskId: string, isCompleted: boolean) => {
   if (!roomId || !taskId) {
     throw new Error('Room ID and task ID are required');
@@ -94,7 +90,6 @@ export const toggleTaskCompletion = async (roomId: string, taskId: string, isCom
   }
 };
 
-// Delete a task
 export const deleteTask = async (roomId: string, taskId: string) => {
   if (!roomId || !taskId) {
     throw new Error('Room ID and task ID are required');
