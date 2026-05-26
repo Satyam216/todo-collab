@@ -1,20 +1,57 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '@/utils/firebase';
 import { FcGoogle } from 'react-icons/fc';
+import { recordUserAgreement } from '@/utils/userActions';
 
 export default function Login() {
   const router = useRouter();
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'read-only' | 'agree'>('read-only');
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsError, setTermsError] = useState("");
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignInClick = () => {
+    setTermsError("");
+    setModalMode('agree');
+    setIsTermsModalOpen(true);
+  };
+
+  const handleAgreeAndSignIn = async () => {
+    setTermsLoading(true);
+    setTermsError("");
     const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/calendar.events');
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      
+      // Store agreement permission in Firestore
+      await recordUserAgreement(
+        result.user.uid,
+        result.user.email,
+        result.user.displayName
+      );
+
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if (token) {
+        localStorage.setItem('gcal_access_token', token);
+      }
+      
+      setIsTermsModalOpen(false);
       router.push('/dashboard/');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during sign-in:', error);
+      if (error && error.code === "auth/popup-closed-by-user") {
+        setTermsError("⚠ SIGN-IN CANCELLED. TO LOG IN AND SYNC CALENDAR, PLEASE COMPLETE THE GOOGLE SIGN-IN POPUP.");
+      } else {
+        setTermsError(`⚠ ERROR: ${error?.message || error}`);
+      }
+    } finally {
+      setTermsLoading(false);
     }
   };
 
@@ -88,7 +125,7 @@ export default function Login() {
 
         {/* GOOGLE SIGN IN */}
         <button
-          onClick={handleGoogleSignIn}
+          onClick={handleGoogleSignInClick}
           style={styles.googleBtn}
           className="hud-google-btn"
         >
@@ -122,7 +159,15 @@ export default function Login() {
         {/* TERMS */}
         <p style={styles.terms}>
           BY SIGNING IN, YOU AGREE TO OUR{' '}
-          <span style={styles.termsLink} className="hud-terms-link">
+          <span
+            onClick={() => {
+              setTermsError("");
+              setModalMode('read-only');
+              setIsTermsModalOpen(true);
+            }}
+            style={styles.termsLink}
+            className="hud-terms-link"
+          >
             TERMS & CONDITIONS
           </span>
         </p>
@@ -132,6 +177,86 @@ export default function Login() {
           <span style={styles.cardBottomText}>SYS-AUTH-v2.4.1 · ALL CHANNELS SECURE</span>
         </div>
       </div>
+
+      {/* TERMS & CONDITIONS MODAL */}
+      {isTermsModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent} className="hud-card">
+            {/* CORNER BRACKETS */}
+            <div style={{ ...styles.corner, ...styles.cornerTL }} />
+            <div style={{ ...styles.corner, ...styles.cornerTR }} />
+            <div style={{ ...styles.corner, ...styles.cornerBL }} />
+            <div style={{ ...styles.corner, ...styles.cornerBR }} />
+
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>
+                {modalMode === 'agree' ? 'CONSENT & INITIALIZE SYSTEM' : 'TERMS & DATA DISCLOSURE'}
+              </span>
+            </div>
+
+            <div style={styles.termsScroller}>
+              <h3 style={styles.termsSecTitle}>1. DATA PRIVACY & STORAGE</h3>
+              <p style={styles.termsText}>
+                We collect and store the following information in our secure cloud database (Firestore) to enable collaborative, real-time workspace functionality:
+              </p>
+              <ul style={styles.termsList}>
+                <li><strong>Google Identity Profile:</strong> Your display name, email address, and profile photo URL. This allows other collaborators to identify you in shared rooms.</li>
+                <li><strong>Collaboration Taskrooms:</strong> Custom Room IDs and optional Room Names created or joined by you.</li>
+                <li><strong>Task Workspace Data:</strong> All task descriptions, completion statuses, creation timestamps, and linked calendar event URLs.</li>
+              </ul>
+
+              <h3 style={styles.termsSecTitle}>2. GOOGLE CALENDAR SYNCING</h3>
+              <p style={styles.termsText}>
+                If you choose to use the "Add to Google Calendar" feature:
+              </p>
+              <ul style={styles.termsList}>
+                <li>We request permission to access and write to your Google Calendar events (<code>https://www.googleapis.com/auth/calendar.events</code>).</li>
+                <li>Your temporary Google OAuth access token is stored locally in your browser's secure cache (<code>localStorage</code>) and is never saved on our servers.</li>
+                <li>We only use this permission to schedule events you explicitly select. We never read, edit, or delete other calendar events.</li>
+              </ul>
+
+              <h3 style={styles.termsSecTitle}>3. USER CONCURRENCY</h3>
+              <p style={styles.termsText}>
+                Your task edits, additions, and status changes are synced in real-time with other active members of your taskroom.
+              </p>
+            </div>
+
+            {termsError && (
+              <p style={styles.errorText}>{termsError}</p>
+            )}
+
+            {modalMode === 'agree' ? (
+              <div style={styles.modalActions}>
+                <button
+                  onClick={() => setIsTermsModalOpen(false)}
+                  style={styles.modalCancelBtn}
+                  disabled={termsLoading}
+                >
+                  DECLINE
+                </button>
+                <button
+                  onClick={handleAgreeAndSignIn}
+                  style={styles.modalSubmitBtn}
+                  className="hud-add-btn"
+                  disabled={termsLoading}
+                >
+                  {termsLoading ? 'AUTHORIZING...' : 'AGREE & SIGN IN'}
+                </button>
+              </div>
+            ) : (
+              <div style={styles.modalActions}>
+                <button
+                  onClick={() => setIsTermsModalOpen(false)}
+                  style={{ ...styles.modalSubmitBtn, width: '100%', justifyContent: 'center' }}
+                  className="hud-add-btn"
+                >
+                  CLOSE
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -143,6 +268,7 @@ const C = {
   cyanDim: '#00d4ff22',
   cyanGlow: '#00d4ff66',
   green: '#00ff9d',
+  red: '#ff4d6d',
   bg: '#050d1a',
   surface: '#0a1628',
   surfaceAlt: '#0d1e35',
@@ -505,6 +631,112 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: 2,
     color: C.borderBright,
     fontFamily: C.font,
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(5, 13, 26, 0.85)',
+    backdropFilter: 'blur(8px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  modalContent: {
+    position: 'relative',
+    width: '95%',
+    maxWidth: 480,
+    background: `linear-gradient(160deg, ${C.surface} 0%, ${C.surfaceAlt} 100%)`,
+    border: `1px solid ${C.borderBright}`,
+    padding: '28px 24px',
+    clipPath: 'polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px))',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 16,
+  },
+  modalHeader: {
+    borderBottom: `1px solid ${C.border}`,
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontFamily: C.font,
+    fontSize: 14,
+    color: C.cyan,
+    letterSpacing: 2,
+  },
+  termsScroller: {
+    maxHeight: 240,
+    overflowY: 'auto' as const,
+    background: C.bg,
+    border: `1px solid ${C.border}`,
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+    textAlign: 'left' as const,
+  },
+  termsSecTitle: {
+    fontFamily: C.font,
+    fontSize: 10,
+    color: C.cyan,
+    letterSpacing: 2,
+    margin: 0,
+  },
+  termsText: {
+    fontSize: 11,
+    color: C.textDim,
+    lineHeight: 1.6,
+    margin: 0,
+  },
+  termsList: {
+    paddingLeft: '18px',
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+    fontSize: 11,
+    color: C.textDim,
+  },
+  modalActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalCancelBtn: {
+    background: 'transparent',
+    border: `1px solid ${C.red}`,
+    color: C.red,
+    padding: '10px 20px',
+    cursor: 'pointer',
+    fontFamily: C.font,
+    fontSize: 11,
+    letterSpacing: 2,
+    clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)',
+    transition: 'all 0.2s',
+  },
+  modalSubmitBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: `linear-gradient(135deg, ${C.cyan}22, ${C.cyan}44)`,
+    border: `1px solid ${C.cyan}`,
+    color: C.cyan,
+    padding: '10px 20px',
+    cursor: 'pointer',
+    fontFamily: C.font,
+    fontSize: 11,
+    letterSpacing: 2,
+    clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)',
+    transition: 'all 0.2s',
+  },
+  errorText: {
+    color: C.red,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    lineHeight: 1.6,
+    margin: 0,
+    textAlign: 'center' as const,
   },
 };
 

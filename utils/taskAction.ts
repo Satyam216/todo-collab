@@ -13,6 +13,7 @@ type Task = {
   task: string;
   completed: boolean;
   createdAt?: any;
+  calendarLink?: string;
 };
 
 export const addTask = async (roomId: string, task: string) => {
@@ -27,7 +28,7 @@ export const addTask = async (roomId: string, task: string) => {
       completed: false,
       createdAt: new Date(),
     });
-    return { id: newTask.id, task, completed: false };
+    return { id: newTask.id, task, completed: false, createdAt: new Date(), calendarLink: '' };
   } catch (error) {
     console.error('Error adding task:', error);
     throw error;
@@ -42,14 +43,28 @@ export const getTasks = async (roomId: string): Promise<Task[] | null> => {
   try {
     const tasksRef = collection(doc(db, 'rooms', roomId), 'tasks');
     const snapshot = await getDocs(tasksRef);
-    return snapshot.docs.map((doc) => { 
+    const taskList = snapshot.docs.map((doc) => { 
       const data = doc.data();
       return {
       id: doc.id,
       task: data.task || '',
       completed: data.completed ?? false,
       createdAt: data.createdAt || null,
+      calendarLink: data.calendarLink || '',
     }; });
+
+    taskList.sort((a, b) => {
+      const getMillis = (time: any) => {
+        if (!time) return 0;
+        if (typeof time === 'object' && 'seconds' in time) {
+          return time.seconds * 1000 + Math.floor(time.nanoseconds / 1000000);
+        }
+        return new Date(time).getTime();
+      };
+      return getMillis(b.createdAt) - getMillis(a.createdAt);
+    });
+
+    return taskList;
   } catch (error) {
     console.error('Error fetching tasks:', error);
     return null ;
@@ -101,6 +116,23 @@ export const deleteTask = async (roomId: string, taskId: string) => {
     console.log('Task deleted successfully');
   } catch (error) {
     console.error('Error deleting task:', error);
+    throw error;
+  }
+};
+
+export const updateTaskCalendarLink = async (roomId: string, taskId: string, calendarLink: string) => {
+  if (!roomId || !taskId) {
+    throw new Error('Room ID and task ID are required');
+  }
+
+  try {
+    const taskRef = doc(db, 'rooms', roomId, 'tasks', taskId);
+    await updateDoc(taskRef, {
+      calendarLink,
+    });
+    console.log('Task calendar link updated successfully');
+  } catch (error) {
+    console.error('Error updating task calendar link:', error);
     throw error;
   }
 };

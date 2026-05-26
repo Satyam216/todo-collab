@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className={`${orbitron.variable} ${shareTechMono.variable}`}>
         <div style={styles.wrapper}>
           <main style={styles.main}>{children}</main>

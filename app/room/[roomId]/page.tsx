@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
+import { signOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "@/utils/firebase";
 import {
   addTask,
@@ -10,9 +10,10 @@ import {
   deleteTask,
   toggleTaskCompletion,
   editTask,
+  updateTaskCalendarLink,
 } from "@/utils/taskAction";
 import { checkRoomExists } from "@/utils/roomActions";
-import { Copy, Check, ArrowLeft, LogOut, Plus, Pencil, Trash2, CheckCircle, RotateCcw } from "lucide-react";
+import { Copy, Check, ArrowLeft, LogOut, Plus, Pencil, Trash2, CheckCircle, RotateCcw, Calendar, ExternalLink } from "lucide-react";
 
 interface Task {
   id: string;
@@ -20,6 +21,7 @@ interface Task {
   completed: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdAt?: any;
+  calendarLink?: string;
 }
 
 export default function RoomPage() {
@@ -35,6 +37,15 @@ export default function RoomPage() {
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [selectedTaskForCalendar, setSelectedTaskForCalendar] = useState<Task | null>(null);
+  const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("");
+  const [eventDuration, setEventDuration] = useState("60");
+  const [calendarError, setCalendarError] = useState("");
+  const [calendarSuccess, setCalendarSuccess] = useState("");
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   useEffect(() => {
     if (roomId) setClientRoomId(roomId);
@@ -100,7 +111,7 @@ export default function RoomPage() {
       return;
     }
     const newTask = await addTask(clientRoomId, task);
-    if (newTask) setTasks((prev) => [...prev, newTask]);
+    if (newTask) setTasks((prev) => [newTask, ...prev]);
     setTask("");
     setError("");
   };
@@ -129,6 +140,156 @@ export default function RoomPage() {
     );
     setEditingTask(null);
     setEditText("");
+  };
+
+  const linkGoogleCalendar = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/calendar.events');
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if (token) {
+        localStorage.setItem('gcal_access_token', token);
+        return token;
+      }
+    } catch (e) {
+      console.error("Error linking Google Calendar:", e);
+      const err = e as any;
+      if (err && err.code === "auth/popup-closed-by-user") {
+        setCalendarError("⚠ SIGN-IN BYPASSED. TO AUTHORIZE, CLICK 'ADVANCED' -> 'GO TO TODO-COLLAB (UNSAFE)'.");
+      } else {
+        setCalendarError(`⚠ AUTH ERROR: ${err?.message || e}`);
+      }
+    }
+    return null;
+  };
+
+  const openCalendarModal = (t: Task) => {
+    setSelectedTaskForCalendar(t);
+    setCalendarError("");
+    setCalendarSuccess("");
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localDate = (new Date(now.getTime() - tzOffset)).toISOString().slice(0, 10);
+    const localTime = (new Date(now.getTime() - tzOffset)).toISOString().slice(11, 16);
+    setEventDate(localDate);
+    setEventTime(localTime);
+    setEventDuration("60");
+    setIsCalendarModalOpen(true);
+  };
+
+  const handleAddToCalendar = async () => {
+    if (!selectedTaskForCalendar || !eventDate || !eventTime) {
+      setCalendarError("⚠ PLEASE SELECT BOTH DATE AND TIME");
+      return;
+    }
+
+    setCalendarLoading(true);
+    setCalendarError("");
+    setCalendarSuccess("");
+
+    let token = localStorage.getItem('gcal_access_token');
+    
+    if (!token) {
+      // Prompt user to link calendar first
+      token = await linkGoogleCalendar();
+      if (!token) {
+        setCalendarError("⚠ GOOGLE CALENDAR AUTHORIZATION REQUIRED");
+        setCalendarLoading(false);
+        return;
+      }
+    }
+
+    const startDateTime = new Date(`${eventDate}T${eventTime}`);
+    if (isNaN(startDateTime.getTime())) {
+      setCalendarError("⚠ INVALID DATE OR TIME SELECTION");
+      setCalendarLoading(false);
+      return;
+    }
+
+    const durationMin = parseInt(eventDuration, 10);
+    const endDateTime = new Date(startDateTime.getTime() + durationMin * 60000);
+
+    const event = {
+      summary: `Task: ${selectedTaskForCalendar.task}`,
+      description: `Synchronized from Todo-Collab. Room ID: ${clientRoomId}`,
+      start: {
+        dateTime: startDateTime.toISOString(),
+      },
+      end: {
+        dateTime: endDateTime.toISOString(),
+      },
+    };
+
+    try {
+      const response = await fetch(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(event),
+        }
+      );
+
+      if (response.status === 401) {
+        // Access token expired, attempt one-time re-auth
+        localStorage.removeItem('gcal_access_token');
+        setCalendarError("⚠ SESSION EXPIRED. RE-LINKING ACCOUNT...");
+        const newToken = await linkGoogleCalendar();
+        if (newToken) {
+          // Retry calendar event creation
+          const retryResponse = await fetch(
+            "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${newToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(event),
+            }
+          );
+          if (retryResponse.ok) {
+            const data = await retryResponse.json();
+            await updateTaskCalendarLink(clientRoomId, selectedTaskForCalendar.id, data.htmlLink);
+            setTasks((prev) =>
+              prev.map((t) => (t.id === selectedTaskForCalendar.id ? { ...t, calendarLink: data.htmlLink } : t))
+            );
+            setCalendarSuccess("SUCCESSFULLY ADDED TO GOOGLE CALENDAR!");
+            setTimeout(() => setIsCalendarModalOpen(false), 1500);
+          } else {
+            setCalendarError("⚠ RETRY FAILED. PLEASE TRY AGAIN.");
+          }
+        } else {
+          setCalendarError("⚠ RE-AUTHORIZATION FAILED.");
+        }
+        setCalendarLoading(false);
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        await updateTaskCalendarLink(clientRoomId, selectedTaskForCalendar.id, data.htmlLink);
+        setTasks((prev) =>
+          prev.map((t) => (t.id === selectedTaskForCalendar.id ? { ...t, calendarLink: data.htmlLink } : t))
+        );
+        setCalendarSuccess("SUCCESSFULLY ADDED TO GOOGLE CALENDAR!");
+        setTimeout(() => setIsCalendarModalOpen(false), 1500);
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        console.error("API error details:", errData);
+        setCalendarError("⚠ FAILED TO ADD EVENT TO CALENDAR.");
+      }
+    } catch (e) {
+      console.error(e);
+      setCalendarError("⚠ NETWORK ERROR. PLEASE TRY AGAIN.");
+    } finally {
+      setCalendarLoading(false);
+    }
   };
 
   const completedCount = tasks.filter((t) => t.completed).length;
@@ -293,6 +454,31 @@ export default function RoomPage() {
                   </button>
                 )}
 
+                {!t.completed && (
+                  t.calendarLink ? (
+                    <a
+                      href={t.calendarLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ ...styles.actionBtn, borderColor: "#00ff9d", color: "#00ff9d", display: "inline-flex", alignItems: "center", textDecoration: "none" }}
+                      className="hud-icon-btn"
+                      title="Open Google Calendar Event"
+                    >
+                      <Calendar size={15} />
+                      <ExternalLink size={10} style={{ marginLeft: 2 }} />
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => openCalendarModal(t)}
+                      style={{ ...styles.actionBtn, borderColor: "#00d4ff", color: "#00d4ff" }}
+                      className="hud-icon-btn"
+                      title="Add to Google Calendar"
+                    >
+                      <Calendar size={15} />
+                    </button>
+                  )
+                )}
+
                 <button
                   onClick={() => handleToggleComplete(t.id, t.completed)}
                   style={{ ...styles.actionBtn, ...(t.completed ? styles.actionUndo : styles.actionDone) }}
@@ -319,6 +505,118 @@ export default function RoomPage() {
           ))}
         </ul>
       </div>
+
+      {/* GOOGLE CALENDAR MODAL */}
+      {isCalendarModalOpen && selectedTaskForCalendar && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent} className="hud-card">
+            {/* CORNER BRACKETS */}
+            <div style={{ ...styles.corner, ...styles.cornerTL }} />
+            <div style={{ ...styles.corner, ...styles.cornerTR }} />
+            <div style={{ ...styles.corner, ...styles.cornerBL }} />
+            <div style={{ ...styles.corner, ...styles.cornerBR }} />
+
+            <div style={styles.modalHeader}>
+              <Calendar size={18} color="#00d4ff" />
+              <span style={styles.modalTitle}>SCHEDULE TASK EVENT</span>
+            </div>
+
+            <div style={styles.modalTaskDetails}>
+              <span style={styles.modalTaskLabel}>TASK DESCRIPTION</span>
+              <p style={styles.modalTaskText}>{selectedTaskForCalendar.task}</p>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", width: "100%" }}>
+              <div style={{ ...styles.fieldWrap, flex: 1, minWidth: 150 }}>
+                <label style={styles.fieldLabel}>
+                  EVENT DATE
+                </label>
+                <div style={styles.inputGroup}>
+                  <div style={styles.inputAccent} />
+                  <input
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    style={styles.modalInput}
+                    className="hud-input"
+                    disabled={calendarLoading}
+                  />
+                </div>
+              </div>
+
+              <div style={{ ...styles.fieldWrap, flex: 1, minWidth: 150 }}>
+                <label style={styles.fieldLabel}>
+                  EVENT TIME
+                </label>
+                <div style={styles.inputGroup}>
+                  <div style={{ ...styles.inputAccent, background: `linear-gradient(180deg, ${C.cyan}, transparent)` }} />
+                  <input
+                    type="time"
+                    value={eventTime}
+                    onChange={(e) => setEventTime(e.target.value)}
+                    style={styles.modalInput}
+                    className="hud-input"
+                    disabled={calendarLoading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.fieldWrap}>
+              <label style={styles.fieldLabel}>
+                DURATION
+              </label>
+              <div style={styles.inputGroup}>
+                <div style={{ ...styles.inputAccent, background: `linear-gradient(180deg, ${C.cyan}, transparent)` }} />
+                <select
+                  value={eventDuration}
+                  onChange={(e) => setEventDuration(e.target.value)}
+                  style={styles.modalSelect}
+                  className="hud-input"
+                  disabled={calendarLoading}
+                >
+                  <option value="15">15 MINUTES</option>
+                  <option value="30">30 MINUTES</option>
+                  <option value="45">45 MINUTES</option>
+                  <option value="60">1 HOUR</option>
+                  <option value="120">2 HOURS</option>
+                  <option value="180">3 HOURS</option>
+                  <option value="240">4 HOURS</option>
+                  <option value="300">5 HOURS</option>
+                  <option value="360">6 HOURS</option>
+                  <option value="1440">ALL DAY (24 HOURS)</option>
+                </select>
+              </div>
+            </div>
+
+            {calendarError && (
+              <p style={{ ...styles.error, margin: "12px 0 0" }}>{calendarError}</p>
+            )}
+
+            {calendarSuccess && (
+              <p style={{ ...styles.success, margin: "12px 0 0" }}>{calendarSuccess}</p>
+            )}
+
+            <div style={styles.modalActions}>
+              <button
+                onClick={() => setIsCalendarModalOpen(false)}
+                style={styles.modalCancelBtn}
+                disabled={calendarLoading}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleAddToCalendar}
+                style={styles.modalSubmitBtn}
+                className="hud-add-btn"
+                disabled={calendarLoading}
+              >
+                {calendarLoading ? "PROCESSING..." : "ADD TO CALENDAR"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -704,6 +1002,128 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: `2px solid ${C.cyan}`,
     borderLeft: `2px solid ${C.cyan}`,
   },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(5, 13, 26, 0.85)",
+    backdropFilter: "blur(8px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+  },
+  modalContent: {
+    position: "relative",
+    width: "90%",
+    maxWidth: 460,
+    background: `linear-gradient(160deg, ${C.surface} 0%, ${C.surfaceAlt} 100%)`,
+    border: `1px solid ${C.borderBright}`,
+    padding: "28px 24px",
+    clipPath: "polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px))",
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 20,
+  },
+  modalHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    borderBottom: `1px solid ${C.border}`,
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontFamily: C.font,
+    fontSize: 14,
+    color: C.cyan,
+    letterSpacing: 2,
+  },
+  modalTaskDetails: {
+    background: C.bg,
+    border: `1px solid ${C.border}`,
+    padding: "12px 14px",
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 6,
+  },
+  modalTaskLabel: {
+    fontSize: 9,
+    color: C.textDim,
+    letterSpacing: 2,
+    fontFamily: C.font,
+  },
+  modalTaskText: {
+    fontSize: 13,
+    color: C.text,
+    wordBreak: "break-word" as const,
+  },
+  modalInput: {
+    width: "100%",
+    background: C.bg,
+    border: `1px solid ${C.borderBright}`,
+    borderLeft: "none",
+    color: C.text,
+    fontFamily: C.fontBody,
+    fontSize: 13,
+    padding: "10px 12px 10px 16px",
+    outline: "none",
+    letterSpacing: 1,
+    boxSizing: "border-box" as const,
+  },
+  modalSelect: {
+    width: "100%",
+    background: C.bg,
+    border: `1px solid ${C.borderBright}`,
+    borderLeft: "none",
+    color: C.text,
+    fontFamily: C.fontBody,
+    fontSize: 13,
+    padding: "10px 12px 10px 16px",
+    outline: "none",
+    letterSpacing: 1,
+    boxSizing: "border-box" as const,
+    appearance: "none",
+    cursor: "pointer",
+  },
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 12,
+    marginTop: 8,
+  },
+  modalCancelBtn: {
+    background: "transparent",
+    border: `1px solid ${C.textDim}`,
+    color: C.textDim,
+    padding: "10px 20px",
+    cursor: "pointer",
+    fontFamily: C.font,
+    fontSize: 11,
+    letterSpacing: 2,
+    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+    transition: "all 0.2s",
+  },
+  modalSubmitBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    background: `linear-gradient(135deg, ${C.cyan}22, ${C.cyan}44)`,
+    border: `1px solid ${C.cyan}`,
+    color: C.cyan,
+    padding: "10px 20px",
+    cursor: "pointer",
+    fontFamily: C.font,
+    fontSize: 11,
+    letterSpacing: 2,
+    clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+    transition: "all 0.2s",
+  },
+  success: {
+    color: C.green,
+    fontFamily: C.fontBody,
+    fontSize: 12,
+    letterSpacing: 2,
+    paddingLeft: 4,
+  },
 };
 
 const loadingAnim = `
@@ -739,5 +1159,11 @@ const globalStyles = `
 
   @media (max-width: 600px) {
     .task-item { flex-wrap: wrap; }
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
   }
 `;
