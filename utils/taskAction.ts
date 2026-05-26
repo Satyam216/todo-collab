@@ -14,9 +14,10 @@ type Task = {
   completed: boolean;
   createdAt?: any;
   calendarLink?: string;
+  addedBy?: string;
 };
 
-export const addTask = async (roomId: string, task: string) => {
+export const addTask = async (roomId: string, task: string, addedBy: string) => {
   if (!roomId || !task.trim()) {
     throw new Error('Room ID and task are required');
   }
@@ -27,8 +28,9 @@ export const addTask = async (roomId: string, task: string) => {
       task,
       completed: false,
       createdAt: new Date(),
+      addedBy,
     });
-    return { id: newTask.id, task, completed: false, createdAt: new Date(), calendarLink: '' };
+    return { id: newTask.id, task, completed: false, createdAt: new Date(), calendarLink: '', addedBy };
   } catch (error) {
     console.error('Error adding task:', error);
     throw error;
@@ -51,6 +53,7 @@ export const getTasks = async (roomId: string): Promise<Task[] | null> => {
       completed: data.completed ?? false,
       createdAt: data.createdAt || null,
       calendarLink: data.calendarLink || '',
+      addedBy: data.addedBy || '',
     }; });
 
     taskList.sort((a, b) => {

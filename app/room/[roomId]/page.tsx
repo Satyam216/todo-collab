@@ -22,6 +22,7 @@ interface Task {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdAt?: any;
   calendarLink?: string;
+  addedBy?: string;
 }
 
 export default function RoomPage() {
@@ -110,7 +111,8 @@ export default function RoomPage() {
       setError("⚠ INPUT CANNOT BE EMPTY");
       return;
     }
-    const newTask = await addTask(clientRoomId, task);
+    const userEmail = auth.currentUser?.email || "Unknown User";
+    const newTask = await addTask(clientRoomId, task, userEmail);
     if (newTask) setTasks((prev) => [newTask, ...prev]);
     setTask("");
     setError("");
@@ -427,9 +429,14 @@ export default function RoomPage() {
                     {t.task}
                   </span>
                 )}
-                {t.createdAt && (
-                  <span style={styles.taskDate}>{formatDate(t.createdAt)}</span>
-                )}
+                <div style={styles.taskMetaRow}>
+                  {t.createdAt && (
+                    <span style={styles.taskDate}>{formatDate(t.createdAt)}</span>
+                  )}
+                  {t.addedBy && (
+                    <span style={styles.taskUser}>BY: {t.addedBy}</span>
+                  )}
+                </div>
               </div>
 
               {/* ACTIONS */}
@@ -942,6 +949,8 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.7,
   },
   taskDate: { fontSize: 10, color: C.textDim, letterSpacing: 1 },
+  taskMetaRow: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const, marginTop: 4 },
+  taskUser: { fontSize: 10, color: C.cyan, letterSpacing: 1 },
 
   editInput: {
     background: C.surfaceAlt,
